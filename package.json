@@ -1,0 +1,45 @@
+{
+  "name": "brasco-os",
+  "version": "1.0.0",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build:web": "vite build",
+    "build": "npm run build:web && electron-builder",
+    "start": "electron .",
+    "build:mac": "npm run build:web && electron-builder --mac dmg",
+    "build:linux": "npm run build:web && electron-builder --linux AppImage rpm",
+    "build:linux:appimage:x64": "npm run build:web && electron-builder --linux AppImage --x64",
+    "build:linux:appimage:arm64": "npm run build:web && electron-builder --linux AppImage --arm64"
+  },
+  "build": {
+    "appId": "com.brasco.os",
+    "productName": "Brasco OS",
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "package.json"
+    ],
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "rpm"
+      ],
+      "category": "Utility"
+    }
+  },
+  "dependencies": {
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "electron": "^31.0.0",
+    "electron-builder": "^26.0.0",
+    "vite": "^8.0.16"
+  }
+}
