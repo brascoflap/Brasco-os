@@ -1,7 +1,6 @@
 import fs from "fs";
-
-const config = JSON.parse(fs.readFileSync(".brasco-private/notion/config.json", "utf8"));
-const tasksPath = ".brasco-private/tasks/tasks.md";
+import path from "path";
+import { fileURLToPath } from "url";
 
 function nextTaskId(currentText) {
   const matches = [...currentText.matchAll(/TASK-(\d+)/g)];
@@ -16,50 +15,63 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-const response = await fetch(`https://api.notion.com/v1/databases/${config.databaseId}/query`, {
-  method: "POST",
-  headers: {
-    "Authorization": `Bearer ${config.notionToken}`,
-    "Notion-Version": "2022-06-28",
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    filter: {
-      property: "Status",
-      select: {
-        equals: "New"
-      }
-    }
-  })
-});
+export async function syncNotionToTasks({ cwd = process.cwd(), log = console.log } = {}) {
+  const configPath = path.join(cwd, ".brasco-private/notion/config.json");
+  const tasksPath = path.join(cwd, ".brasco-private/tasks/tasks.md");
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
-const data = await response.json();
+  let response;
 
-if (!response.ok) {
-  console.error("Notion lezen mislukt:");
-  console.error(JSON.stringify(data, null, 2));
-  process.exit(1);
-}
-
-let tasksText = fs.readFileSync(tasksPath, "utf8");
-let added = 0;
-
-for (const page of data.results) {
-  const props = page.properties;
-
-  const title = props.Name?.title?.map(t => t.plain_text).join("").trim() || "";
-  const type = props.Type?.select?.name || "Note";
-  const priority = props.Priority?.select?.name || "Normal";
-  const due = props.Due?.date?.start || "";
-
-  if (!title || title === "Standaard") {
-    console.log(`Overgeslagen lege/default rij: ${page.id}`);
-    continue;
+  try {
+    response = await fetch(`https://api.notion.com/v1/databases/${config.databaseId}/query`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.notionToken}`,
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        filter: {
+          property: "Status",
+          select: {
+            equals: "New"
+          }
+        }
+      })
+    });
+  } catch (error) {
+    const cause = error.cause?.code || error.cause?.message || error.message;
+    throw new Error(`Notion netwerkfout: ${cause}`);
   }
 
-  const taskId = nextTaskId(tasksText);
+  const data = await response.json();
 
-  const block = `
+  if (!response.ok) {
+    throw new Error(`Notion lezen mislukt: ${data.message || response.statusText}`);
+  }
+
+  let tasksText = fs.readFileSync(tasksPath, "utf8");
+  let added = 0;
+  const linked = [];
+  const skipped = [];
+
+  for (const page of data.results) {
+    const props = page.properties;
+
+    const title = props.Name?.title?.map(t => t.plain_text).join("").trim() || "";
+    const type = props.Type?.select?.name || "Note";
+    const priority = props.Priority?.select?.name || "Normal";
+    const due = props.Due?.date?.start || "";
+
+    if (!title || title === "Standaard") {
+      skipped.push(page.id);
+      log(`Overgeslagen lege/default rij: ${page.id}`);
+      continue;
+    }
+
+    const taskId = nextTaskId(tasksText);
+
+    const block = `
 
 ## ${taskId}
 
@@ -91,47 +103,71 @@ Volgende actie:
 Beoordelen en koppelen aan Brasco OS planning.
 `;
 
-  tasksText += block;
-  added++;
+    tasksText += block;
+    added++;
 
-  const updateResponse = await fetch(`https://api.notion.com/v1/pages/${page.id}`, {
-    method: "PATCH",
-    headers: {
-      "Authorization": `Bearer ${config.notionToken}`,
-      "Notion-Version": "2022-06-28",
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      properties: {
-        Status: {
-          select: {
-            name: "Linked"
-          }
+    let updateResponse;
+
+    try {
+      updateResponse = await fetch(`https://api.notion.com/v1/pages/${page.id}`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${config.notionToken}`,
+          "Notion-Version": "2022-06-28",
+          "Content-Type": "application/json"
         },
-        "Brasco ID": {
-          rich_text: [
-            {
-              text: {
-                content: taskId
+        body: JSON.stringify({
+          properties: {
+            Status: {
+              select: {
+                name: "Linked"
               }
+            },
+            "Brasco ID": {
+              rich_text: [
+                {
+                  text: {
+                    content: taskId
+                  }
+                }
+              ]
             }
-          ]
-        }
-      }
-    })
-  });
+          }
+        })
+      });
+    } catch (error) {
+      const cause = error.cause?.code || error.cause?.message || error.message;
+      throw new Error(`Notion update netwerkfout voor ${title}: ${cause}`);
+    }
 
-  const updateData = await updateResponse.json();
+    const updateData = await updateResponse.json();
 
-  if (!updateResponse.ok) {
-    console.error(`Notion status updaten mislukt voor ${title}:`);
-    console.error(JSON.stringify(updateData, null, 2));
-    process.exit(1);
+    if (!updateResponse.ok) {
+      throw new Error(`Notion status updaten mislukt voor ${title}: ${updateData.message || updateResponse.statusText}`);
+    }
+
+    linked.push({ taskId, title });
+    log(`Gekoppeld: ${taskId} ← ${title}`);
   }
 
-  console.log(`Gekoppeld: ${taskId} ← ${title}`);
+  fs.writeFileSync(tasksPath, tasksText);
+
+  return {
+    added,
+    linked,
+    skipped,
+    message: `Klaar. Nieuwe taken toegevoegd: ${added}`
+  };
 }
 
-fs.writeFileSync(tasksPath, tasksText);
+const isCli = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
-console.log(`Klaar. Nieuwe taken toegevoegd: ${added}`);
+if (isCli) {
+  try {
+    const result = await syncNotionToTasks();
+    console.log(result.message);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+}

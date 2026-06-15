@@ -105,6 +105,38 @@ Echte synchronisatie uitvoeren:
 npm run notion:sync
 ```
 
+## UI-knoppen in Brasco OS
+
+In de Electron-app zijn twee minimale knoppen toegevoegd aan het System-paneel.
+
+### Sync Notion Inbox
+
+Deze knop voert dezelfde sync-route uit als:
+
+```bash
+npm run notion:sync
+```
+
+De knop toont alleen succes, aantal toegevoegde taken of een foutmelding. Het Notion-token wordt niet naar de UI gestuurd en blijft lokaal in `.brasco-private/`.
+
+### Nieuwe taak
+
+Deze knop opent een eenvoudige handmatige taakflow met:
+
+- Titel
+- Type
+- Prioriteit
+- Deadline
+- Beschrijving
+
+De taak wordt lokaal toegevoegd aan:
+
+```txt
+.brasco-private/tasks/tasks.md
+```
+
+Brasco OS genereert automatisch het volgende `TASK-nummer`.
+
 Brasco OS:
 
 1. Leest records met `Status = New`

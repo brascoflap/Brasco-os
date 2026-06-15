@@ -62,6 +62,14 @@ const actionLabels = {
   done: "afronden"
 };
 
+const emptyManualTask = {
+  title: "",
+  type: "Task",
+  priority: "Normal",
+  deadline: "",
+  description: ""
+};
+
 function createWorkdayTasks() {
   const existingTasks = initialTasks.map((task) => ({
     ...task,
@@ -114,6 +122,68 @@ function getActionStatus(command) {
   return null;
 }
 
+function TaskInput({ label, value, onChange, type = "text", multiline = false, required = false }) {
+  const fieldStyle = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid #333",
+    background: "#0b0b0c",
+    color: "white",
+    outline: "none",
+    resize: "vertical"
+  };
+
+  return (
+    <label style={{ display: "block", color: "#777", marginBottom: 10 }}>
+      <span style={{ display: "block", marginBottom: 5 }}>{label}</span>
+      {multiline ? (
+        <textarea
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          rows={4}
+          style={fieldStyle}
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          required={required}
+          style={fieldStyle}
+        />
+      )}
+    </label>
+  );
+}
+
+function TaskSelect({ label, value, options, onChange }) {
+  return (
+    <label style={{ display: "block", color: "#777", marginBottom: 10 }}>
+      <span style={{ display: "block", marginBottom: 5 }}>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          padding: "10px 12px",
+          borderRadius: 10,
+          border: "1px solid #333",
+          background: "#0b0b0c",
+          color: "white",
+          outline: "none"
+        }}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function App() {
   const [mode, setMode] = useState(null);
   const [activeSection, setActiveSection] = useState("Commandor");
@@ -124,6 +194,11 @@ export default function App() {
   const [actionLog, setActionLog] = useState([]);
   const [focusTask, setFocusTask] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
+  const [notionSyncStatus, setNotionSyncStatus] = useState("Nog niet gesynchroniseerd.");
+  const [manualTask, setManualTask] = useState(emptyManualTask);
+  const [manualTaskStatus, setManualTaskStatus] = useState("Nog geen handmatige taak aangemaakt.");
+  const [isSyncingNotion, setIsSyncingNotion] = useState(false);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
 
   const openTasks = tasks.filter((task) => task.status !== "done");
   const priorityTasks = getTopTasks(openTasks);
@@ -157,6 +232,74 @@ export default function App() {
       },
       ...currentLog
     ].slice(0, 6));
+  };
+
+  const electronApi = typeof window !== "undefined" ? window.brascoOS : null;
+
+  const updateManualTask = (field, value) => {
+    setManualTask((currentTask) => ({
+      ...currentTask,
+      [field]: value
+    }));
+  };
+
+  const syncNotionInbox = async () => {
+    if (!electronApi?.syncNotionInbox) {
+      setNotionSyncStatus("Niet beschikbaar in browser-preview. Open Brasco OS via Electron.");
+      return;
+    }
+
+    setIsSyncingNotion(true);
+    setNotionSyncStatus("Notion Inbox synchroniseren...");
+
+    try {
+      const result = await electronApi.syncNotionInbox();
+
+      if (!result.ok) {
+        setNotionSyncStatus(`Sync mislukt: ${result.message}`);
+        addActionLog("Notion sync mislukt.");
+        return;
+      }
+
+      setNotionSyncStatus(`Sync gelukt. Toegevoegde taken: ${result.added}.`);
+      addActionLog(`Notion sync gelukt: ${result.added} nieuwe taken.`);
+    } catch (error) {
+      setNotionSyncStatus(`Sync mislukt: ${error.message}`);
+      addActionLog("Notion sync mislukt.");
+    } finally {
+      setIsSyncingNotion(false);
+    }
+  };
+
+  const createManualTask = async (event) => {
+    event.preventDefault();
+
+    if (!electronApi?.createManualTask) {
+      setManualTaskStatus("Niet beschikbaar in browser-preview. Open Brasco OS via Electron.");
+      return;
+    }
+
+    setIsCreatingTask(true);
+    setManualTaskStatus("Taak aanmaken...");
+
+    try {
+      const result = await electronApi.createManualTask(manualTask);
+
+      if (!result.ok) {
+        setManualTaskStatus(`Aanmaken mislukt: ${result.message}`);
+        addActionLog("Handmatige taak aanmaken mislukt.");
+        return;
+      }
+
+      setManualTaskStatus(`Taak aangemaakt: ${result.taskId} · ${result.title}`);
+      setManualTask(emptyManualTask);
+      addActionLog(`Nieuwe taak aangemaakt: ${result.taskId}`);
+    } catch (error) {
+      setManualTaskStatus(`Aanmaken mislukt: ${error.message}`);
+      addActionLog("Handmatige taak aanmaken mislukt.");
+    } finally {
+      setIsCreatingTask(false);
+    }
   };
 
   const selectTask = (task) => {
@@ -591,6 +734,84 @@ technische status:
       <SystemLine label="Rapport" value={directTask?.reportSource || "Geen rapport gekoppeld."} />
       <SystemLine label="PDF-bron" value={directTask?.pdfSource || "Geen PDF-bron gekoppeld."} />
       <SystemLine label="Waarschuwing" value={missingProjects.length > 0 ? "Niet alle hoofdprojecten hebben data." : "Alle hoofdprojecten zijn zichtbaar."} />
+      <div style={{
+        marginTop: 22,
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+        gap: 16
+      }}>
+        <div style={{
+          padding: 14,
+          borderRadius: 12,
+          background: "#18181b",
+          border: "1px solid #26262a"
+        }}>
+          <div style={{ color: "#ddd", fontSize: 15, marginBottom: 8 }}>
+            Sync Notion Inbox
+          </div>
+          <div style={{ color: "#777", marginBottom: 12 }}>
+            Leest `Status = New`, schrijft lokale taken en zet Notion op Linked. Tokens blijven buiten de UI.
+          </div>
+          <ExecutorButton onClick={syncNotionInbox}>
+            {isSyncingNotion ? "Bezig..." : "Sync Notion Inbox"}
+          </ExecutorButton>
+          <div style={{ color: "#aaa", marginTop: 12 }}>
+            {notionSyncStatus}
+          </div>
+        </div>
+
+        <form
+          onSubmit={createManualTask}
+          style={{
+            padding: 14,
+            borderRadius: 12,
+            background: "#18181b",
+            border: "1px solid #26262a"
+          }}
+        >
+          <div style={{ color: "#ddd", fontSize: 15, marginBottom: 8 }}>
+            Nieuwe taak
+          </div>
+          <TaskInput
+            label="Titel"
+            value={manualTask.title}
+            onChange={(value) => updateManualTask("title", value)}
+            required
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <TaskSelect
+              label="Type"
+              value={manualTask.type}
+              options={["Task", "Note", "Idea", "Decision"]}
+              onChange={(value) => updateManualTask("type", value)}
+            />
+            <TaskSelect
+              label="Prioriteit"
+              value={manualTask.priority}
+              options={["Low", "Normal", "High"]}
+              onChange={(value) => updateManualTask("priority", value)}
+            />
+          </div>
+          <TaskInput
+            label="Deadline"
+            type="date"
+            value={manualTask.deadline}
+            onChange={(value) => updateManualTask("deadline", value)}
+          />
+          <TaskInput
+            label="Beschrijving"
+            value={manualTask.description}
+            onChange={(value) => updateManualTask("description", value)}
+            multiline
+          />
+          <ExecutorButton>
+            {isCreatingTask ? "Aanmaken..." : "Nieuwe taak"}
+          </ExecutorButton>
+          <div style={{ color: "#aaa", marginTop: 12 }}>
+            {manualTaskStatus}
+          </div>
+        </form>
+      </div>
       {directTask?.tags && (
         <div style={{ marginTop: 16 }}>
           <TagList tags={directTask.tags} />
