@@ -71,6 +71,19 @@ Na elke stap:
 
 ---
 
+## Standaard Codex Workflow
+
+- Werk altijd één stap tegelijk.
+- Analyseer eerst, wijzig daarna pas.
+- Vraag om toestemming voordat je bestanden wijzigt.
+- Voer na wijzigingen npm run build uit als dat relevant is.
+- Toon altijd git diff na wijzigingen.
+- Maak nooit automatisch commits of pushes.
+- Werk alleen binnen /Users/brascoholding/brasco-os.
+- Gebruik korte Nederlandse samenvattingen.
+
+---
+
 ## OUTPUT FORMAT
 
 Gebruik altijd:
