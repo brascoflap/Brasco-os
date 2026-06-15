@@ -38,3 +38,5 @@ dist-ssr
 # Local document sharing / scratch folders
 Server_idee_lees/
 public/server_idee_lees
+
+.brasco-private/
