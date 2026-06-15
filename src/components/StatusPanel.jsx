@@ -1,4 +1,11 @@
-export default function StatusPanel() {
+export default function StatusPanel({ tasks = [] }) {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const overdueTasks = tasks.filter((task) => task.deadline && new Date(task.deadline) < todayStart);
+  const activeTasks = tasks.filter((task) => task.status === "active");
+  const blockedTasks = tasks.filter((task) => task.status === "blocked");
+  const doneTasks = tasks.filter((task) => task.status === "done");
+
   return (
     <div style={{
       background: "#111113",
@@ -23,9 +30,11 @@ export default function StatusPanel() {
         STATUS
       </h2>
 
-      <Stat label="Projects" value="12" />
-      <Stat label="Domains" value="183" />
-      <Stat label="Tasks" value="24" />
+      <Stat label="Tasks" value={tasks.length} />
+      <Stat label="Active" value={activeTasks.length} />
+      <Stat label="Blocked" value={blockedTasks.length} />
+      <Stat label="Done" value={doneTasks.length} />
+      <Stat label="Overdue" value={overdueTasks.length} />
     </div>
   );
 }

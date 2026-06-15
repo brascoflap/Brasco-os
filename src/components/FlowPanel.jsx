@@ -1,5 +1,3 @@
-import { tasks } from "../data/tasks";
-
 function getCategory(deadline) {
   const today = new Date();
   const taskDate = new Date(deadline);
@@ -11,7 +9,7 @@ function getCategory(deadline) {
   return "later";
 }
 
-export default function FlowPanel() {
+export default function FlowPanel({ tasks = [], onSelectTask }) {
   const todayTasks = [];
   const soonTasks = [];
   const laterTasks = [];
@@ -33,14 +31,14 @@ export default function FlowPanel() {
       maxWidth: "500px",
       marginTop: "20px"
     }}>
-      <Section title="TODAY" tasks={todayTasks} />
-      <Section title="SOON" tasks={soonTasks} />
-      <Section title="LATER" tasks={laterTasks} />
+      <Section title="TODAY" tasks={todayTasks} onSelectTask={onSelectTask} />
+      <Section title="SOON" tasks={soonTasks} onSelectTask={onSelectTask} />
+      <Section title="LATER" tasks={laterTasks} onSelectTask={onSelectTask} />
     </div>
   );
 }
 
-function Section({ title, tasks }) {
+function Section({ title, tasks, onSelectTask }) {
   if (tasks.length === 0) return null;
 
   return (
@@ -56,15 +54,20 @@ function Section({ title, tasks }) {
       {tasks.map(task => (
         <div
           key={task.id}
+          onClick={() => onSelectTask?.(task)}
           style={{
             padding: "10px",
             marginBottom: "8px",
             background: "#18181b",
             borderRadius: "8px",
-            border: "1px solid #26262a"
+            border: "1px solid #26262a",
+            cursor: onSelectTask ? "pointer" : "default"
           }}
         >
           <div>{task.title}</div>
+          <div style={{ color: "#666", fontSize: "12px", marginTop: "4px" }}>
+            {task.status || "open"}
+          </div>
         </div>
       ))}
     </div>

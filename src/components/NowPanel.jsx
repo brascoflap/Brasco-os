@@ -1,7 +1,6 @@
 import { getTopTasks } from "../engine/priorityEngine";
-import { tasks } from "../data/tasks";
 
-export default function NowPanel({ onSelectTask }) {
+export default function NowPanel({ tasks = [], selectedTaskId, onSelectTask }) {
   const topTasks = getTopTasks(tasks);
 
   return (
@@ -28,41 +27,45 @@ export default function NowPanel({ onSelectTask }) {
         NU
       </h2>
 
-      {topTasks.map((task, index) => (
-        <div
-          key={task.id}
-          onClick={() => onSelectTask(task)}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#222";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "#18181b";
-          }}
-          style={{
-            padding: "14px",
-            marginBottom: "10px",
-            background: "#18181b",
-            borderRadius: "12px",
-            border: "1px solid #26262a",
-            cursor: "pointer",
-            transition: "0.2s"
-          }}
-        >
-          <div style={{
-            fontWeight: "500",
-            marginBottom: "4px"
-          }}>
-            {index + 1}. {task.title}
-          </div>
+      {topTasks.length === 0 ? (
+        <div style={{ color: "#555" }}>Geen open prioriteiten.</div>
+      ) : (
+        topTasks.map((task, index) => (
+          <div
+            key={task.id}
+            onClick={() => onSelectTask(task)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#222";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = selectedTaskId === task.id ? "#24242a" : "#18181b";
+            }}
+            style={{
+              padding: "14px",
+              marginBottom: "10px",
+              background: selectedTaskId === task.id ? "#24242a" : "#18181b",
+              borderRadius: "12px",
+              border: selectedTaskId === task.id ? "1px solid #555" : "1px solid #26262a",
+              cursor: "pointer",
+              transition: "0.2s"
+            }}
+          >
+            <div style={{
+              fontWeight: "500",
+              marginBottom: "4px"
+            }}>
+              {index + 1}. {task.title}
+            </div>
 
-          <div style={{
-            fontSize: "12px",
-            color: "#666"
-          }}>
-            Score: {task.score}
+            <div style={{
+              fontSize: "12px",
+              color: "#666"
+            }}>
+              Score: {task.score} · {task.status || "open"}
+            </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   );
 }
