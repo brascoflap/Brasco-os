@@ -34,3 +34,7 @@ dist-ssr
 # Backups
 *_BACKUP*
 *BACKUP*
+
+# Local document sharing / scratch folders
+Server_idee_lees/
+public/server_idee_lees
